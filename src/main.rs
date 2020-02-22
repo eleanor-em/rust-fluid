@@ -1,8 +1,8 @@
-use gui::graphics;
+use rust_fluid::graphics;
 
 use rand::Rng;
-use gui::graphics::{Backend, VertexProducer, RuntimeParams, RenderData, Vertex, Colour, Index};
-use gui::graphics::util::RenderStack;
+use rust_fluid::graphics::{Backend, VertexProducer, RuntimeParams, RenderData, Vertex, Colour, Index};
+use rust_fluid::graphics::util::RenderStack;
 
 fn main() {
     graphics::init().unwrap()
@@ -19,7 +19,7 @@ impl Producer {
         let mut quads = Vec::new();
         let mut rng = rand::thread_rng();
 
-        for _ in 1..50000 {
+        for _ in 1..10000 {
             quads.push(Quad::new(&mut rng))
         }
 
@@ -54,7 +54,7 @@ struct Quad {
 }
 
 impl Quad {
-    const PERIOD: f32 = 40.;
+    const PERIOD: f32 = 200.;
 
     fn new<R: Rng>(mut rng: &mut R) -> Self {
         let x = rng.gen_range(0.0, 1.0);
@@ -70,7 +70,7 @@ impl Quad {
             dt2: rng.gen_range(0.0, Self::PERIOD),
             dt3: rng.gen_range(0.0, Self::PERIOD),
             dt4: rng.gen_range(0.0, Self::PERIOD),
-            size: rng.gen_range(0.0, 5.0),
+            size: rng.gen_range(0.0, 10.0),
             x, y
         }
     }

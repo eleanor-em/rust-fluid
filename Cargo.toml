@@ -1,5 +1,5 @@
 [package]
-name = "gui"
+name = "rust-fluid"
 version = "0.1.0"
 authors = ["Eleanor McMurtry <elmcmurtry1@gmail.com>"]
 edition = "2018"
