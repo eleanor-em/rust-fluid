@@ -1,0 +1,16 @@
+[package]
+name = "gui"
+version = "0.1.0"
+authors = ["Eleanor McMurtry <elmcmurtry1@gmail.com>"]
+edition = "2018"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+vulkano = "0.13"
+vulkano-shaders = "0.13"
+vulkano-win = "0.13"
+cgmath = "0.17"
+image = "0.21"
+winit = "0.19"
+time = "0.1.37"
