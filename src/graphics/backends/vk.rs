@@ -21,6 +21,8 @@ use vulkano_win::VkSurfaceBuild;
 
 use winit::{EventsLoop, Window, WindowBuilder, Event, WindowEvent};
 
+use simple_error::SimpleError;
+
 use std::sync::Arc;
 use std::iter;
 use std::time::Instant;
@@ -43,22 +45,24 @@ pub struct VulkanBackend {
 }
 
 impl VulkanBackend {
-    fn window_size_dependent_setup(&self) -> (Arc<(dyn GraphicsPipelineAbstract + Send + Sync)>,
-                                              Vec<Arc<dyn FramebufferAbstract + Send + Sync>>) {
+    fn window_size_dependent_setup(&self) -> Result<(Arc<(dyn GraphicsPipelineAbstract + Send + Sync)>,
+                                              Vec<Arc<dyn FramebufferAbstract + Send + Sync>>),
+                                                    Box<dyn Error>>{
         let dimensions = self.images[0].dimensions();
         let depth_buffer = AttachmentImage::transient(
             self.device.clone(),
             dimensions,
-            Format::D16Unorm).unwrap();
+            Format::D16Unorm)?;
 
         let framebuffers = self.images.iter().map(|image| {
-            Arc::new(
-                Framebuffer::start(self.render_pass.clone())
-                    .add(image.clone()).unwrap()
-                    .add(depth_buffer.clone()).unwrap()
-                    .build().unwrap()
-            ) as Arc<dyn FramebufferAbstract + Send + Sync>
-        }).collect::<Vec<_>>();
+            let buf = Framebuffer::start(self.render_pass.clone())
+                .add(image.clone())?
+                .add(depth_buffer.clone())?
+                .build()?;
+            Ok(Arc::new(
+                buf
+            ) as Arc<dyn FramebufferAbstract + Send + Sync>)
+        }).collect::<Result<Vec<_>, Box<dyn Error>>>()?;
 
         let pipeline = Arc::new(GraphicsPipeline::start()
             .vertex_input(TwoBuffersDefinition::<VkVertex, VkColour>::new())
@@ -73,11 +77,11 @@ impl VulkanBackend {
             .fragment_shader(self.fs.main_entry_point(), ())
             .blend_alpha_blending()
             .depth_stencil_simple_depth()
-            .render_pass(Subpass::from(self.render_pass.clone(), 0).unwrap())
-            .build(self.device.clone())
-            .unwrap());
+            .render_pass(Subpass::from(self.render_pass.clone(), 0)
+                .ok_or(SimpleError::new("Failed to load subpass"))?)
+            .build(self.device.clone())?);
 
-        (pipeline, framebuffers)
+        Ok((pipeline, framebuffers))
     }
 
     fn convert_vertex(&self, vert: Vertex) -> VkVertex {
@@ -102,8 +106,8 @@ impl Backend for VulkanBackend {
         println!("Beginning Vulkan setup...");
         let instance = {
             let extensions = vulkano_win::required_extensions();
-            Instance::new(None, &extensions, None).unwrap()
-        };
+            Instance::new(None, &extensions, None)
+        }?;
 
         // We then choose which physical device to use.
         //
@@ -122,24 +126,24 @@ impl Backend for VulkanBackend {
         for device in physical_devices.clone() {
             println!("Found device: {} (type: {:?})", device.name(), device.ty());
         }
-        let physical = physical_devices.next().unwrap();
+        let physical = physical_devices.next().ok_or(SimpleError::new("Found no devices"))?;
         // Some debug info.
         println!("Using {}.", physical.name());
 
 
         let events_loop = EventsLoop::new();
-        let surface = WindowBuilder::new().build_vk_surface(&events_loop, instance.clone()).unwrap();
+        let surface = WindowBuilder::new().build_vk_surface(&events_loop, instance.clone())?;
         let window = surface.window();
 
         let queue_family = physical.queue_families().find(|&q| {
             q.supports_graphics() && surface.is_supported(q).unwrap_or(false)
-        }).unwrap();
+        }).ok_or(SimpleError::new("Found no suitable devices"))?;
 
         let device_ext = DeviceExtensions { khr_swapchain: true, ..DeviceExtensions::none() };
         let (device, mut queues) = Device::new(physical, physical.supported_features(), &device_ext,
-                                               [(queue_family, 0.5)].iter().cloned()).unwrap();
+                                               [(queue_family, 0.5)].iter().cloned())?;
 
-        let queue = queues.next().unwrap();
+        let queue = queues.next().ok_or(SimpleError::new("Failed to create queue"))?;
 
         let (phys_dims, log_dims) = if let Some(dimensions) = window.get_inner_size() {
             let log: (u32, u32) = dimensions.into();
@@ -150,18 +154,19 @@ impl Backend for VulkanBackend {
         };
 
         let (swapchain, images) = {
-            let caps = surface.capabilities(physical).unwrap();
+            let caps = surface.capabilities(physical)?;
             let usage = caps.supported_usage_flags;
-            let alpha = caps.supported_composite_alpha.iter().next().unwrap();
+            let alpha = caps.supported_composite_alpha.iter().next()
+                .ok_or(SimpleError::new("Found no transparency-supporting devices"))?;
             let format = caps.supported_formats[0].0;
 
             Swapchain::new(device.clone(), surface.clone(), caps.min_image_count, format,
                            phys_dims, 1, usage, &queue, SurfaceTransform::Identity, alpha,
-                           PresentMode::Fifo, true, None).unwrap()
-        };
+                           PresentMode::Fifo, true, None)
+        }?;
 
-        let vs = vs::Shader::load(device.clone()).unwrap();
-        let fs = fs::Shader::load(device.clone()).unwrap();
+        let vs = vs::Shader::load(device.clone())?;
+        let fs = fs::Shader::load(device.clone())?;
 
         let render_pass = Arc::new(vulkano::single_pass_renderpass!(device.clone(),
                 attachments: {
@@ -182,7 +187,7 @@ impl Backend for VulkanBackend {
                     color: [color],
                     depth_stencil: {depth}
                 }
-            ).unwrap());
+            )?);
 
         let show_fps = false;
         let images = images.to_vec();
@@ -209,7 +214,7 @@ impl Backend for VulkanBackend {
     }
 
     fn run(mut self, mut vertex_producer: Box<dyn VertexProducer>) -> Result<(), Box<dyn Error>> {
-        let (mut pipeline, mut framebuffers) = self.window_size_dependent_setup();
+        let (mut pipeline, mut framebuffers) = self.window_size_dependent_setup()?;
         let mut recreate_swapchain = false;
         let window = self.surface.window();
 
@@ -220,11 +225,15 @@ impl Backend for VulkanBackend {
         let fps_freq = 100;
         loop {
             if self.show_fps {
+                // The below line panics on my Intel Ultra HD 620 setup,
+                // but only on debug. It seems to be a bug in Vulkano, specifically
+                // a race condition caused by the driver behaving differently to how
+                // they thought it would.
                 previous_frame_end.cleanup_finished();
                 updates += 1;
                 if updates % fps_freq == 0 {
                     let t = Instant::now();
-                    let ms = t.checked_duration_since(t0).unwrap().as_millis() as f32 / fps_freq as f32;
+                    let ms = t.duration_since(t0).as_millis() as f32 / fps_freq as f32;
                     let fps = 1000.0 / ms;
                     println!("{} fps", fps);
                     t0 = Instant::now();
@@ -254,7 +263,7 @@ impl Backend for VulkanBackend {
                 self.swapchain = new_swapchain;
                 self.images = new_images.to_vec();
 
-                let (new_pipeline, new_framebuffers) = self.window_size_dependent_setup();
+                let (new_pipeline, new_framebuffers) = self.window_size_dependent_setup()?;
                 pipeline = new_pipeline;
                 framebuffers = new_framebuffers;
 
@@ -280,22 +289,22 @@ impl Backend for VulkanBackend {
             let vertices: Vec<VkVertex> = vertices.into_iter().map(|vert| self.convert_vertex(vert)).collect();
             let colours: Vec<VkColour> = colours.into_iter().map(|col| VkColour::from(col)).collect();
 
-            let vertex_buffer = CpuAccessibleBuffer::from_iter(self.device.clone(), BufferUsage::all(), vertices.iter().cloned()).unwrap();
-            let colour_buffer = CpuAccessibleBuffer::from_iter(self.device.clone(), BufferUsage::all(), colours.iter().cloned()).unwrap();
-            let index_buffer = CpuAccessibleBuffer::from_iter(self.device.clone(), BufferUsage::all(), indices.iter().cloned()).unwrap();
+            let vertex_buffer = CpuAccessibleBuffer::from_iter(self.device.clone(), BufferUsage::all(), vertices.iter().cloned())?;
+            let colour_buffer = CpuAccessibleBuffer::from_iter(self.device.clone(), BufferUsage::all(), colours.iter().cloned())?;
+            let index_buffer = CpuAccessibleBuffer::from_iter(self.device.clone(), BufferUsage::all(), indices.iter().cloned())?;
 
-            let command_buffer = AutoCommandBufferBuilder::primary_one_time_submit(self.device.clone(), self.queue.family()).unwrap()
-                .begin_render_pass(framebuffers[image_num].clone(), false, clear_values).unwrap()
+            let command_buffer = AutoCommandBufferBuilder::primary_one_time_submit(self.device.clone(), self.queue.family())?
+                .begin_render_pass(framebuffers[image_num].clone(), false, clear_values)?
                 .draw_indexed(
                     pipeline.clone(),
                     &DynamicState::none(),
                     vec!(vertex_buffer.clone(), colour_buffer.clone()),
-                    index_buffer.clone(), (), ()).unwrap()
-                .end_render_pass().unwrap()
-                .build().unwrap();
+                    index_buffer.clone(), (), ())?
+                .end_render_pass()?
+                .build()?;
 
             let future = previous_frame_end.join(acquire_future)
-                .then_execute(self.queue.clone(), command_buffer).unwrap()
+                .then_execute(self.queue.clone(), command_buffer)?
                 .then_swapchain_present(self.queue.clone(), self.swapchain.clone(), image_num)
                 .then_signal_fence_and_flush();
 
