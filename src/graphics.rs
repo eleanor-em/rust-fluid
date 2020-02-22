@@ -23,33 +23,16 @@ use std::sync::Arc;
 use std::iter;
 use std::time::Instant;
 use std::error::Error;
+use std::marker::Sized;
 
 pub enum Vertex {
-    Vert2(f32, f32),
-    Vert3(f32, f32, f32)
-}
-
-impl Vertex {
-    pub fn from_v2(vertices: &[(f32, f32)]) -> Vec<Self> {
-        vertices.into_iter().map(|(x, y)| Self::Vert2(*x, *y)).collect()
-    }
-    pub fn from_v3(vertices: &[(f32, f32, f32)]) -> Vec<Self> {
-        vertices.into_iter().map(|(x, y, z)| Self::Vert3(*x, *y, *z)).collect()
-    }
+    Xy(f32, f32),
+    Xyz(f32, f32, f32)
 }
 
 pub enum Colour {
     Rgb(f32, f32, f32),
     Rgba(f32, f32, f32, f32)
-}
-
-impl Colour {
-    pub fn from_rgb(vertices: &[(f32, f32, f32)]) -> Vec<Self> {
-        vertices.into_iter().map(|(r, g, b)| Self::Rgb(*r, *g, *b)).collect()
-    }
-    pub fn from_rgba(vertices: &[(f32, f32, f32, f32)]) -> Vec<Self> {
-        vertices.into_iter().map(|(r, g, b, a)| Self::Rgba(*r, *g, *b, *a)).collect()
-    }
 }
 
 pub type Index = u16;
@@ -59,13 +42,49 @@ pub struct RuntimeParams {
     pub window_height: u32,
 }
 
-pub type RenderParams = (Vec<Vertex>, Vec<Colour>, Vec<Index>);
-type VertexProducer = dyn Fn(RuntimeParams) -> RenderParams;
+pub type RenderData = (Vec<Vertex>, Vec<Colour>, Vec<Index>);
+
+pub trait VertexProducer {
+    fn get_data(&mut self, params: RuntimeParams) -> RenderData;
+}
 
 pub trait Backend {
-    fn new() -> Result<Self, Box<dyn Error>> where Self: std::marker::Sized;
+    fn new() -> Result<Self, Box<dyn Error>> where Self: Sized;
     fn show_fps(self) -> Self;
-    fn run(self, update_values: &VertexProducer) -> Result<(), Box<dyn Error>>;
+    fn run(self, update_values: Box<dyn VertexProducer>) -> Result<(), Box<dyn Error>>;
+}
+
+impl Vertex {
+    pub fn from_xy(vertices: &[(f32, f32)]) -> Vec<Self> {
+        vertices.into_iter().map(|(x, y)| Self::Xy(*x, *y)).collect()
+    }
+    pub fn from_xyz(vertices: &[(f32, f32, f32)]) -> Vec<Self> {
+        vertices.into_iter().map(|(x, y, z)| Self::Xyz(*x, *y, *z)).collect()
+    }
+}
+
+impl Colour {
+    pub fn from_rgb(vertices: &[(f32, f32, f32)]) -> Vec<Self> {
+        vertices.into_iter().map(|(r, g, b)| Self::Rgb(*r, *g, *b)).collect()
+    }
+    pub fn from_rgba(vertices: &[(f32, f32, f32, f32)]) -> Vec<Self> {
+        vertices.into_iter().map(|(r, g, b, a)| Self::Rgba(*r, *g, *b, *a)).collect()
+    }
+    pub fn red() -> Self {
+        Colour::Rgba(1.0, 0.0, 0.0, 1.0)
+    }
+    pub fn green() -> Self {
+        Colour::Rgba(0.0, 1.0, 0.0, 1.0)
+    }
+    pub fn blue() -> Self {
+        Colour::Rgba(0.0, 0.0, 1.0, 1.0)
+    }
+    pub fn black() -> Self {
+        Colour::Rgba(0.0, 0.0, 0.0, 1.0)
+    }
+    pub fn white() -> Self {
+        Colour::Rgba(1.0, 1.0, 1.0, 1.0)
+    }
 }
 
 pub fn new() -> Result<backends::VulkanBackend, Box<dyn Error>> {
@@ -93,9 +112,13 @@ pub mod backends {
     }
 
     impl VulkanBackend {
-        fn window_size_dependent_setup(&self) -> (Arc<(dyn GraphicsPipelineAbstract + Send + Sync)>, Vec<Arc<dyn FramebufferAbstract + Send + Sync>>) {
+        fn window_size_dependent_setup(&self) -> (Arc<(dyn GraphicsPipelineAbstract + Send + Sync)>,
+                                                  Vec<Arc<dyn FramebufferAbstract + Send + Sync>>) {
             let dimensions = self.images[0].dimensions();
-            let depth_buffer = AttachmentImage::transient(self.device.clone(), dimensions, Format::D16Unorm).unwrap();
+            let depth_buffer = AttachmentImage::transient(
+                self.device.clone(),
+                dimensions,
+                Format::D16Unorm).unwrap();
 
             let framebuffers = self.images.iter().map(|image| {
                 Arc::new(
@@ -128,14 +151,16 @@ pub mod backends {
 
         fn convert_vertex(&self, vert: Vertex) -> VkVertex {
             let mut position = match vert {
-                Vertex::Vert2(x, y) => (x, y, 0.0),
-                Vertex::Vert3(x, y, z) => (x, y, z)
+                Vertex::Xy(x, y) => (x, y, 0.0),
+                Vertex::Xyz(x, y, z) => (x, y, z)
             };
 
             position.0 /= self.log_dims[0] as f32;
             position.1 /= self.log_dims[1] as f32;
             position.0 -= 0.5;
             position.1 -= 0.5;
+            position.0 *= 2.;
+            position.1 *= 2.;
 
             VkVertex { position }
         }
@@ -252,7 +277,7 @@ pub mod backends {
             self
         }
 
-        fn run(mut self, update_values: &VertexProducer) -> Result<(), Box<dyn Error>> {
+        fn run(mut self, mut vertex_producer: Box<dyn VertexProducer>) -> Result<(), Box<dyn Error>> {
             let (mut pipeline, mut framebuffers) = self.window_size_dependent_setup();
             let mut recreate_swapchain = false;
             let window = self.surface.window();
@@ -316,9 +341,9 @@ pub mod backends {
                     Err(err) => panic!("{:?}", err)
                 };
 
-                let clear_values = vec![[0.0, 0.0, 1.0, 1.0].into(), 1f32.into()];
+                let clear_values = vec![[0.0, 0.0, 0.0, 1.0].into(), 1f32.into()];
 
-                let (vertices, colours, indices) = update_values(RuntimeParams {
+                let (vertices, colours, indices) = vertex_producer.get_data(RuntimeParams {
                     window_width: self.log_dims[0],
                     window_height: self.log_dims[1]
                 });
