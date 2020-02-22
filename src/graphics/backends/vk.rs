@@ -101,7 +101,7 @@ impl VulkanBackend {
     }
 }
 
-impl Backend for VulkanBackend {
+impl GfxProvider for VulkanBackend {
     fn new() -> Result<Self, Box<dyn Error>> {
         println!("Beginning Vulkan setup...");
         let instance = {

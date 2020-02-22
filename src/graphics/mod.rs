@@ -4,13 +4,13 @@ use crate::graphics::backends::vk::VulkanBackend;
 
 pub type Index = u16;
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Copy)]
 pub enum Vertex {
     Xy(f32, f32),
     Xyz(f32, f32, f32)
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Copy)]
 pub enum Colour {
     Rgb(f32, f32, f32),
     Rgba(f32, f32, f32, f32)
@@ -55,7 +55,7 @@ impl Colour {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Copy)]
 pub struct RuntimeParams {
     pub window_width: u16,
     pub window_height: u16,
@@ -67,7 +67,7 @@ pub trait VertexProducer {
     fn get_data(&mut self, params: RuntimeParams) -> RenderData;
 }
 
-pub trait Backend {
+pub trait GfxProvider {
     fn new() -> Result<Self, Box<dyn Error>> where Self: Sized;
     fn show_fps(self) -> Self;
     fn run(self, update_values: Box<dyn VertexProducer>) -> Result<(), Box<dyn Error>>;

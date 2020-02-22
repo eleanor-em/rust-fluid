@@ -35,13 +35,13 @@ impl RenderStack {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Copy)]
 pub struct Coord {
     pub x: i16,
     pub y: i16
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Copy)]
 pub struct Quad {
     pub top_left: Coord,
     pub width: u16,
@@ -61,7 +61,7 @@ impl Quad {
             (left + w, top),
             (left + w, top + h)
         ]);
-        let cols = vec![self.colour.clone(), self.colour.clone(), self.colour.clone(), self.colour.clone()];
+        let cols = vec![self.colour, self.colour, self.colour, self.colour];
         let indices = vec![
             0u16, 1, 2, 2, 3, 1
         ];

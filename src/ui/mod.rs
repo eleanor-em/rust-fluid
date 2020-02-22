@@ -1,5 +1,55 @@
-use crate::graphics::{Colour, RenderData, RuntimeParams};
+use crate::graphics::{Colour, RenderData, RuntimeParams, VertexProducer};
 use crate::graphics::util::{Quad, RenderStack, Coord};
+
+pub struct Frame {
+    frame: Container,
+}
+
+impl Frame {
+    pub fn style(&mut self) -> &mut Style {
+        &mut self.frame.style
+    }
+
+    pub fn new() -> Self {
+        Self { frame: Container::new() }
+    }
+
+    pub fn flex(mut self, flex: u8) -> Self {
+        self.frame.style.flex = flex;
+        self
+    }
+
+    pub fn colour(mut self, col: Colour) -> Self {
+        self.frame.style.colour = col;
+        self
+    }
+
+    pub fn padding(mut self, border: Border) -> Self {
+        self.frame.style.padding = border;
+        self
+    }
+
+    pub fn margin(mut self, border: Border) -> Self {
+        self.frame.style.margin = border;
+        self
+    }
+
+    pub fn border_width(mut self, w: u16) -> Self {
+        self.frame.style.border_width = w;
+        self
+    }
+
+    pub fn border_colour(mut self, col: Colour) -> Self {
+        self.frame.style.border_colour = col;
+        self
+    }
+}
+
+impl VertexProducer for Frame {
+    fn get_data(&mut self, params: RuntimeParams) -> RenderData {
+        self.frame.render(&params)
+    }
+}
 
 pub enum Direction {
     Row,
@@ -107,11 +157,11 @@ impl Container {
             height: ((self.h * params.window_height as f32) as i16
                 - self.style.margin.bottom
                 - self.style.margin.top) as u16,
-            colour: self.style.border_colour.clone()
+            colour: self.style.border_colour,
         };
 
-        let mut content_quad = border_quad.clone();
-        content_quad.colour = self.style.colour.clone();
+        let mut content_quad = border_quad;
+        content_quad.colour = self.style.colour;
         content_quad.top_left.x += self.style.border_width as i16;
         content_quad.top_left.y += self.style.border_width as i16;
         content_quad.width -= self.style.border_width * 2;
