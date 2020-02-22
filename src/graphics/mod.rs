@@ -4,11 +4,13 @@ use crate::graphics::backends::vk::VulkanBackend;
 
 pub type Index = u16;
 
+#[derive(Debug, Clone)]
 pub enum Vertex {
     Xy(f32, f32),
     Xyz(f32, f32, f32)
 }
 
+#[derive(Debug, Clone)]
 pub enum Colour {
     Rgb(f32, f32, f32),
     Rgba(f32, f32, f32, f32)

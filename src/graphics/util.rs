@@ -30,3 +30,36 @@ impl RenderStack {
         (self.verts, self.cols, self.indices)
     }
 }
+
+pub struct Coord {
+    pub x: i16,
+    pub y: i16
+}
+
+pub struct Quad {
+    pub top_left: Coord,
+    pub width: u16,
+    pub height: u16,
+    pub colour: Colour
+}
+
+impl Quad {
+    pub fn render(&self) -> RenderData {
+        let left = self.top_left.x as f32;
+        let top = self.top_left.y as f32;
+        let w = self.width as f32;
+        let h = self.height as f32;
+        let vertices = Vertex::from_xy(&[
+            (left, top),
+            (left, top + h),
+            (left + w, top),
+            (left + w, top + h)
+        ]);
+        let cols = vec![self.colour.clone(), self.colour.clone(), self.colour.clone(), self.colour.clone()];
+        let indices = vec![
+            0u16, 1, 2, 2, 3, 1
+        ];
+
+        (vertices, cols, indices)
+    }
+}
