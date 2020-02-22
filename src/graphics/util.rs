@@ -1,13 +1,17 @@
 use crate::graphics::*;
 
-pub struct RenderQueue {
+/// Yes, it's a stack.
+///
+/// Things get drawn in the reverse order to which they are pushed. Therefore, the most recently-
+/// -pushed thing will appear on the bottom.
+pub struct RenderStack {
     verts: Vec<Vertex>,
     cols: Vec<Colour>,
     indices: Vec<Index>,
     base: usize
 }
 
-impl RenderQueue {
+impl RenderStack {
     pub fn new() -> Self {
         Self {
             verts: Vec::new(),
@@ -31,11 +35,13 @@ impl RenderQueue {
     }
 }
 
+#[derive(Debug, Clone)]
 pub struct Coord {
     pub x: i16,
     pub y: i16
 }
 
+#[derive(Debug, Clone)]
 pub struct Quad {
     pub top_left: Coord,
     pub width: u16,

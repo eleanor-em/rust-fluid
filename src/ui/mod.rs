@@ -1,5 +1,5 @@
 use crate::graphics::{Colour, RenderData, RuntimeParams};
-use crate::graphics::util::{Quad, RenderQueue, Coord};
+use crate::graphics::util::{Quad, RenderStack, Coord};
 
 pub enum Direction {
     Row,
@@ -30,7 +30,7 @@ impl Border {
 trait SetPosition {
     fn set_top_left(&mut self, left: i16, top: i16);
 
-    fn set_w_h(&mut self, w: u16, h: u16);
+    fn set_w_h(&mut self, w: f32, h: f32);
 }
 
 pub struct Style {
@@ -50,7 +50,7 @@ impl Style {
             padding: Border::zero(),
             margin: Border::zero(),
             border_width: 0,
-            border_colour: Colour::white()
+            border_colour: Colour::black()
         }
     }
 }
@@ -61,9 +61,8 @@ pub struct Container {
     pub style: Style,
     left: i16,
     top: i16,
-    w: u16,
-    h: u16,
-    params: RuntimeParams
+    w: f32,
+    h: f32,
 }
 
 impl SetPosition for Container {
@@ -72,23 +71,22 @@ impl SetPosition for Container {
         self.top = top;
     }
 
-    fn set_w_h(&mut self, w: u16, h: u16) {
+    fn set_w_h(&mut self, w: f32, h: f32) {
         self.w = w;
         self.h = h;
     }
 }
 
 impl Container {
-    pub fn new(params: &RuntimeParams) -> Self {
+    pub fn new() -> Self {
         Self {
             flex_direction: Direction::Row,
             children: vec![],
             style: Style::new(),
             left: 0,
             top: 0,
-            w: params.window_width,
-            h: params.window_height,
-            params: params.clone(),
+            w: 1.,
+            h: 1.,
         }
     }
 
@@ -96,18 +94,33 @@ impl Container {
         self.children.push(obj);
     }
 
-    pub fn render(&self) -> RenderData {
-        let mut queue = RenderQueue::new();
-        let quad = Quad {
-            top_left: Coord { x: self.left, y: self.top},
-            width: self.w,
-            height: self.h,
-            colour: self.style.colour.clone()
+    pub fn render(&self, params: &RuntimeParams) -> RenderData {
+        let mut stack = RenderStack::new();
+        let border_quad = Quad {
+            top_left: Coord {
+                x: self.left + self.style.margin.left,
+                y: self.top + self.style.margin.top
+            },
+            width: ((self.w * params.window_width as f32) as i16
+                - self.style.margin.right
+                - self.style.margin.left) as u16,
+            height: ((self.h * params.window_height as f32) as i16
+                - self.style.margin.bottom
+                - self.style.margin.top) as u16,
+            colour: self.style.border_colour.clone()
         };
 
-        queue.push(quad.render());
+        let mut content_quad = border_quad.clone();
+        content_quad.colour = self.style.colour.clone();
+        content_quad.top_left.x += self.style.border_width as i16;
+        content_quad.top_left.y += self.style.border_width as i16;
+        content_quad.width -= self.style.border_width * 2;
+        content_quad.height -= self.style.border_width * 2;
 
-        queue.build()
+        stack.push(content_quad.render());
+        stack.push(border_quad.render());
+
+        stack.build()
     }
 }
 
@@ -115,8 +128,8 @@ pub struct Component {
     pub style: Style,
     left: i16,
     top: i16,
-    w: u16,
-    h: u16,
+    w: f32,
+    h: f32,
 }
 
 impl SetPosition for Component {
@@ -125,7 +138,7 @@ impl SetPosition for Component {
         self.top = top;
     }
 
-    fn set_w_h(&mut self, w: u16, h: u16) {
+    fn set_w_h(&mut self, w: f32, h: f32) {
         self.w = w;
         self.h = h;
     }

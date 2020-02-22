@@ -1,7 +1,7 @@
 use rust_fluid::graphics;
 
 use rust_fluid::graphics::{Backend, VertexProducer, RuntimeParams, RenderData, Colour};
-use rust_fluid::ui::Container;
+use rust_fluid::ui::{Container, Border};
 
 fn main() {
     graphics::init().unwrap()
@@ -10,28 +10,25 @@ fn main() {
 }
 
 struct Producer {
-    container: Option<Container>
+    frame: Container
 }
 
 impl Producer {
     fn new() -> Self {
-        Self {
-            container: None
-        }
-    }
-
-    fn create_ui(params: &RuntimeParams) -> Container {
-        let mut frame = Container::new(&params);
+        let mut frame = Container::new();
         frame.style.colour = Colour::rgb8(20, 20, 25);
+        frame.style.margin = Border::new(4, 4, 4, 4);
+        frame.style.border_width = 4;
+        frame.style.border_colour = Colour::white();
 
-        frame
+        Self {
+            frame
+        }
     }
 }
 
 impl VertexProducer for Producer {
     fn get_data(&mut self, params: RuntimeParams) -> RenderData {
-        let frame = self.container.get_or_insert_with(|| Self::create_ui(&params));
-
-        frame.render()
+        self.frame.render(&params)
     }
 }
