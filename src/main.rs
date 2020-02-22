@@ -1,26 +1,36 @@
-use gui::graphics::*;
+use gui::graphics;
+use gui::graphics::{Backend, Vertex, Colour, RuntimeParams, RenderParams};
 
 fn main() {
     // TODO: Cleaner interface for vertices.
-    run_show_fps(|| {
-        let vertices = vec![
-            Vertex3 { position: (-0.5, -0.5, 0.0) },
-            Vertex3 { position: (-0.5, 0.5, 0.0) },
-            Vertex3 { position: (0.5, -0.5, 0.0) },
-            Vertex3 { position: (0.5, 0.5, 0.0) }
-        ];
+    graphics::new().unwrap()
+        .show_fps()
+        .run(&producer).unwrap();
+}
 
-        let colours = vec![
-            Colour4 { colour: (1.0, 0.0, 0.0, 1.0) },
-            Colour4 { colour: (0.0, 1.0, 0.0, 1.0) },
-            Colour4 { colour: (0.0, 0.0, 1.0, 1.0) },
-            Colour4 { colour: (1.0, 1.0, 1.0, 1.0) }
-        ];
+fn producer(params: RuntimeParams) -> RenderParams {
+    let size = 100;
+    let left = (params.window_width / 2 - size) as f32;
+    let right = (params.window_width / 2 + size) as f32;
+    let top = (params.window_height / 2 - size) as f32;
+    let bottom = (params.window_height / 2 + size) as f32;
+    let vertices = Vertex::from_v3(&[
+        (left, top, 0.0),
+        (left, bottom, 0.0),
+        (right, top, 0.0),
+        (right, bottom, 0.0)
+    ]);
 
-        let indices = vec![
-            0u16, 1, 2, 2, 3, 1
-        ];
+    let colours = Colour::from_rgba(&[
+        (1.0, 0.0, 0.0, 1.0),
+        (0.0, 1.0, 0.0, 1.0),
+        (0.0, 0.0, 1.0, 1.0),
+        (1.0, 1.0, 1.0, 1.0)
+    ]);
 
-        (vertices, colours, indices)
-    });
+    let indices = vec![
+        0u16, 1, 2, 2, 3, 1
+    ];
+
+    (vertices, colours, indices)
 }
