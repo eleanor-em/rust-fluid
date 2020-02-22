@@ -26,8 +26,14 @@ impl Vertex {
 }
 
 impl Colour {
+    pub fn rgb8(r: u8, g: u8, b: u8) -> Self {
+        Self::Rgba(r as f32 / 255., g as f32 / 255., b as f32 / 255., 1.)
+    }
+    pub fn rgba8(r: u8, g: u8, b: u8, a: u8) -> Self {
+        Self::Rgba(r as f32 / 255., g as f32 / 255., b as f32 / 255., a as f32 / 255.)
+    }
     pub fn from_rgb(vertices: &[(f32, f32, f32)]) -> Vec<Self> {
-        vertices.into_iter().map(|(r, g, b)| Self::Rgb(*r, *g, *b)).collect()
+        vertices.into_iter().map(|(r, g, b)| Self::Rgba(*r, *g, *b, 1.0)).collect()
     }
     pub fn from_rgba(vertices: &[(f32, f32, f32, f32)]) -> Vec<Self> {
         vertices.into_iter().map(|(r, g, b, a)| Self::Rgba(*r, *g, *b, *a)).collect()
@@ -49,9 +55,10 @@ impl Colour {
     }
 }
 
+#[derive(Debug, Clone)]
 pub struct RuntimeParams {
-    pub window_width: u32,
-    pub window_height: u32,
+    pub window_width: u16,
+    pub window_height: u16,
 }
 
 pub type RenderData = (Vec<Vertex>, Vec<Colour>, Vec<Index>);

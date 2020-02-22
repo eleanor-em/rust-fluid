@@ -1,13 +1,13 @@
 use crate::graphics::*;
 
-pub struct RenderStack {
+pub struct RenderQueue {
     verts: Vec<Vertex>,
     cols: Vec<Colour>,
     indices: Vec<Index>,
     base: usize
 }
 
-impl RenderStack {
+impl RenderQueue {
     pub fn new() -> Self {
         Self {
             verts: Vec::new(),

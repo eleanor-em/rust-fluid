@@ -86,16 +86,16 @@ impl VulkanBackend {
 
     fn convert_vertex(&self, vert: Vertex) -> VkVertex {
         let mut position = match vert {
-            Vertex::Xy(x, y) => (x, y, 0.0),
-            Vertex::Xyz(x, y, z) => (x, y, z)
+            Vertex::Xy(x, y) => [x, y, 0.0],
+            Vertex::Xyz(x, y, z) => [x, y, z]
         };
 
-        position.0 /= self.log_dims[0] as f32;
-        position.1 /= self.log_dims[1] as f32;
-        position.0 -= 0.5;
-        position.1 -= 0.5;
-        position.0 *= 2.;
-        position.1 *= 2.;
+        position[0] /= self.log_dims[0] as f32;
+        position[1] /= self.log_dims[1] as f32;
+        position[0] -= 0.5;
+        position[1] -= 0.5;
+        position[0] *= 2.;
+        position[1] *= 2.;
 
         VkVertex { position }
     }
@@ -132,7 +132,10 @@ impl Backend for VulkanBackend {
 
 
         let events_loop = EventsLoop::new();
-        let surface = WindowBuilder::new().build_vk_surface(&events_loop, instance.clone())?;
+        let surface = WindowBuilder::new()
+//            .with_transparency(true)
+            .with_decorations(false)
+            .build_vk_surface(&events_loop, instance.clone())?;
         let window = surface.window();
 
         let queue_family = physical.queue_families().find(|&q| {
@@ -279,11 +282,11 @@ impl Backend for VulkanBackend {
                 Err(err) => panic!("{:?}", err)
             };
 
-            let clear_values = vec![[0.0, 0.0, 0.0, 1.0].into(), 1f32.into()];
+            let clear_values = vec![[1., 0., 1., 1.].into(), 1f32.into()];
 
             let (vertices, colours, indices) = vertex_producer.get_data(RuntimeParams {
-                window_width: self.log_dims[0],
-                window_height: self.log_dims[1]
+                window_width: self.log_dims[0] as u16,
+                window_height: self.log_dims[1] as u16
             });
 
             let vertices: Vec<VkVertex> = vertices.into_iter().map(|vert| self.convert_vertex(vert)).collect();
@@ -339,20 +342,25 @@ impl Backend for VulkanBackend {
 }
 
 #[derive(Default, Debug, Clone)]
-struct VkVertex { position: (f32, f32, f32) }
+struct VkVertex { position: [f32; 3] }
 vulkano::impl_vertex!(VkVertex, position);
 
 
 #[derive(Default, Debug, Clone)]
-struct VkColour { colour: (f32, f32, f32, f32) }
+struct VkColour { colour: [f32; 4] }
 vulkano::impl_vertex!(VkColour, colour);
 
 impl From<Colour> for VkColour {
     fn from(col: Colour) -> Self {
-        let colour = match col {
-            Colour::Rgb(r, g, b) => (r, g, b, 1.0),
-            Colour::Rgba(r, g, b, a) => (r, g, b, a)
+        let mut colour = match col {
+            Colour::Rgb(r, g, b) => [r, g, b, 1.0],
+            Colour::Rgba(r, g, b, a) => [r, g, b, a]
         };
+        // Convert from sRGB; the Vulkano API doesn't allow us to change the colour space
+        for i in colour.iter_mut() {
+            *i = i.powf(2.2);
+        }
+
         Self { colour }
     }
 }
